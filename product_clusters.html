@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Product Cluster Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #fff;
+    --surface: #13131c;
+    --border: rgba(255,255,255,0.07);
+    --text: #e8e8f0;
+    --muted: #6b6b80;
+    --accent: #7c6eff;
+    --accent2: #ff6e7c;
+    --pill-0: #7c6eff; --pill-0-bg: rgba(124,110,255,0.12);
+    --pill-1: #ff6e7c; --pill-1-bg: rgba(255,110,124,0.12);
+    --pill-2: #3ecf8e; --pill-2-bg: rgba(62,207,142,0.12);
+    --pill-3: #f5a623; --pill-3-bg: rgba(245,166,35,0.12);
+    --pill-4: #00bcd4; --pill-4-bg: rgba(0,188,212,0.12);
+    --pill-5: #e040fb; --pill-5-bg: rgba(224,64,251,0.12);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Geist Sans', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Noise texture overlay ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 200px;
+    opacity: 0.4;
+  }
+
+  /* ── Header ── */
+  header {
+    position: relative; z-index: 10;
+    padding: 3rem 2rem 2rem;
+    border-bottom: 1px solid var(--border);
+    display: flex; flex-direction: column; align-items: center; gap: 0.75rem;
+    text-align: center;
+  }
+
+  .header-label {
+    font-family: 'Geist Sans', sans-serif;
+    font-size: 0.65rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--accent);
+    opacity: 0.8;
+  }
+
+  h1 {
+    font-family: 'Geist Sans', sans-serif;
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 800;
+    line-height: 1.05;
+    background: #000;
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .subtitle {
+    max-width: 520px;
+    font-size: 0.9rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* ── Algo badge ── */
+  .algo-badge {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.4rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 0.75rem;
+    color: var(--muted);
+    background: var(--surface);
+    margin-top: 0.25rem;
+  }
+  .algo-badge .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(0.8)} }
+
+  /* ── Stats bar ── */
+  .stats-bar {
+    position: relative; z-index: 10;
+    display: flex; justify-content: center; gap: 2.5rem; flex-wrap: wrap;
+    padding: 1.25rem 2rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .stat { text-align: center; }
+  .stat-num {
+    font-family: 'Geist Sans', sans-serif;
+    font-size: 1.6rem; font-weight: 800; line-height: 1;
+    background: linear-gradient(135deg, #fff, var(--accent));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .stat-label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 2px; }
+
+  /* ── Filter tabs ── */
+  .filter-bar {
+    position: relative; z-index: 10;
+    display: flex; flex-wrap: wrap; gap: 0.5rem;
+    padding: 1.5rem 2rem;
+    justify-content: center;
+  }
+  .filter-btn {
+    padding: 0.4rem 1.1rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: 'Geist Sans', sans-serif;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .filter-btn:hover { border-color: rgba(255,255,255,0.2); color: #000; }
+  .filter-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  /* ── Main grid ── */
+  main {
+    position: relative; z-index: 10;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 1.5rem 4rem;
+  }
+
+  /* ── Cluster section ── */
+  .cluster-section {
+    margin-bottom: 3.5rem;
+    transition: opacity 0.3s, transform 0.3s;
+  }
+  .cluster-section.hidden { display: none; }
+
+  .cluster-header {
+    display: flex; align-items: center; gap: 1rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .cluster-index {
+    font-family: 'Geist Sans', sans-serif;
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 0.25rem 0.7rem;
+    border-radius: 4px;
+    border: 1px solid;
+    flex-shrink: 0;
+  }
+
+  .cluster-title {
+    font-family: 'Geist Sans', sans-serif;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #000;
+  }
+  .cluster-count {
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+
+  /* ── Product grid ── */
+  .product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+  }
+
+  /* ── Product card ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: transform 0.25s, border-color 0.25s, box-shadow 0.25s;
+    cursor: default;
+    animation: fadeUp 0.5s both;
+  }
+  .card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(255,255,255,0.15);
+    box-shadow: 0 16px 40px rgba(0,0,0,0.4);
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .card-img {
+    width: 100%; aspect-ratio: 1;
+    object-fit: cover;
+    display: block;
+    background: #1a1a28;
+  }
+
+  .card-body { padding: 0.85rem; }
+
+  .card-title {
+    font-family: 'Geist Sans', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 600;
+    line-height: 1.3;
+    margin-bottom: 0.4rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .card-desc {
+    font-size: 0.72rem;
+    color: var(--muted);
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-bottom: 0.6rem;
+  }
+
+  .card-footer {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 0.4rem;
+  }
+
+  .card-price {
+    font-family: 'Geist Sans', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 800;
+  }
+
+  .card-tag {
+    font-size: 0.62rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+    border: 1px solid;
+    opacity: 0.8;
+  }
+
+  /* ── Footer ── */
+  footer {
+    position: relative; z-index: 10;
+    text-align: center;
+    padding: 2rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  /* ── Search ── */
+  .search-wrap {
+    position: relative; z-index: 10;
+    display: flex; justify-content: center;
+    padding: 0 2rem 0.5rem;
+  }
+  .search-input {
+    width: 100%; max-width: 420px;
+    padding: 0.6rem 1rem 0.6rem 2.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--text);
+    font-family: 'Geist Sans', sans-serif;
+    font-size: 0.85rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .search-input:focus { border-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="algo-badge">
+    <span class="dot"></span>
+    Stany Ganyani R204442S HAI
+  </div>
+  <div class="header-label">Web Mining &amp; Recommender Systems</div>
+  <h1>Product Cluster Explorer</h1>
+  <p class="subtitle">38 products crawled and clustered by text description similarity using TF-IDF vectorization and K-Means algorithm.</p>
+  <div class="algo-badge">
+    <span class="dot"></span>
+    Algorithm: TF-IDF + K-Means (k=6) &nbsp;·&nbsp; Similarity: Cosine
+  </div>
+</header>
+
+<div class="stats-bar">
+  <div class="stat"><div class="stat-num" id="stat-products">38</div><div class="stat-label">Products</div></div>
+  <div class="stat"><div class="stat-num">6</div><div class="stat-label">Clusters</div></div>
+  <div class="stat"><div class="stat-num">500</div><div class="stat-label">TF-IDF Features</div></div>
+  <div class="stat"><div class="stat-num">Cosine</div><div class="stat-label">Similarity Metric</div></div>
+</div>
+
+<div class="search-wrap">
+  <input class="search-input" type="text" placeholder="Search products..." id="searchInput" oninput="filterSearch()">
+</div>
+
+<div class="filter-bar" id="filterBar">
+  <button class="filter-btn active" onclick="filterCluster('all', this)">All Clusters</button>
+</div>
+
+<main id="mainContent"></main>
+
+<footer>
+  Built for <strong>Web Mining &amp; Recommender Systems</strong> &nbsp;·&nbsp;
+  Clustering: <a href="https://scikit-learn.org/stable/modules/generated/sklearn.cluster.KMeans.html" target="_blank">scikit-learn K-Means</a> &nbsp;·&nbsp;
+  Images: <a href="https://picsum.photos" target="_blank">picsum.photos</a>
+</footer>
+
+<script>
+const CLUSTER_COLORS = ['--pill-0','--pill-1','--pill-2','--pill-3','--pill-4','--pill-5'];
+const CLUSTER_LABELS = {
+  0: "Kitchen & Steel",
+  1: "Tech & Gaming",
+  2: "Books & Learning",
+  3: "Portable Electronics",
+  4: "Fitness & Smart Home",
+  5: "Apparel & Outdoors"
+};
+
+const DATA = {"cluster_names":{"0":"Stainless Steel \u00b7 Stainless \u00b7 Steel","1":"Set \u00b7 Wireless \u00b7 Gaming","2":"Covering \u00b7 Programming \u00b7 Learning","3":"Usb \u00b7 Portable \u00b7 4K","4":"Yoga \u00b7 Smart \u00b7 Camera","5":"Adjustable \u00b7 Lightweight \u00b7 Heel"},"products":[{"title":"Wireless Noise-Cancelling Headphones","price":"$249.99","image":"https://picsum.photos/seed/headphones1/300/300","description":"Over-ear Bluetooth headphones with 30-hour battery, active noise cancellation and premium sound quality for music and calls.","cluster":1,"cluster_name":"Set \u00b7 Wireless \u00b7 Gaming"},{"title":"True Wireless Earbuds","price":"$89.99","image":"https://picsum.photos/seed/earbuds2/300/300","description":"Compact wireless earbuds with deep bass, touch controls and sweat-resistant design perfect for workouts and commuting.","cluster":1,"cluster_name":"Set \u00b7 Wireless \u00b7 Gaming"},{"title":"Bluetooth Speaker","price":"$59.99","image":"https://picsum.photos/seed/speaker3/300/300","description":"Portable waterproof Bluetooth speaker delivering 360 degree stereo sound with 12-hour playtime and rugged outdoor build.","cluster":3,"cluster_name":"Usb \u00b7 Portable \u00b7 4K"},{"title":"Smartwatch Fitness Tracker","price":"$199.99","image":"https://picsum.photos/seed/watch4/300/300","description":"Advanced smartwatch with heart rate monitor, GPS, sleep tracking, and smartphone notifications on a vibrant AMOLED display.","cluster":1,"cluster_name":"Set \u00b7 Wireless \u00b7 Gaming"},{"title":"4K Ultra HD Monitor","price":"$449.99","image":"https://picsum.photos/seed/monitor5/300/300","description":"27-inch 4K IPS display with 144Hz refresh rate, USB-C connectivity and factory-calibrated wide color gamut for professionals.","cluster":3,"cluster_name":"Usb \u00b7 Portable \u00b7 4K"},{"title":"Mechanical Gaming Keyboard","price":"$129.99","image":"https://picsum.photos/seed/keyboard6/300/300","description":"Full-size mechanical keyboard with Cherry MX switches, per-key RGB backlighting, and aluminum frame for competitive gaming.","cluster":1,"cluster_name":"Set \u00b7 Wireless \u00b7 Gaming"},{"title":"Wireless Gaming Mouse","price":"$79.99","image":"https://picsum.photos/seed/mouse7/300/300","description":"High-precision 25K DPI wireless gaming mouse with programmable buttons, ergonomic grip and ultra-low latency receiver.","cluster":1,"cluster_name":"Set \u00b7 Wireless \u00b7 Gaming"},{"title":"USB-C Laptop Hub","price":"$49.99","image":"https://picsum.photos/seed/hub8/300/300","description":"7-in-1 USB-C hub with HDMI 4K output, 3 USB ports, SD card reader, and 100W power delivery for modern laptops.","cluster":3,"cluster_name":"Usb \u00b7 Portable \u00b7 4K"},{"title":"Portable SSD 1TB","price":"$109.99","image":"https://picsum.photos/seed/ssd9/300/300","description":"Ultra-fast portable solid state drive with 1050MB/s read speed, shock-resistant aluminum enclosure and USB-C interface.","cluster":3,"cluster_name":"Usb \u00b7 Portable \u00b7 4K"},{"title":"Smart Home Security Camera","price":"$69.99","image":"https://picsum.photos/seed/cam10/300/300","description":"1080p indoor smart camera with two-way audio, motion detection alerts, night vision and cloud storage subscription.","cluster":4,"cluster_name":"Yoga \u00b7 Smart \u00b7 Camera"},{"title":"Men's Slim-Fit Chinos","price":"$59.99","image":"https://picsum.photos/seed/chinos11/300/300","description":"Stretch cotton slim-fit chino trousers in classic navy, ideal for smart-casual office wear or weekend outings.","cluster":4,"cluster_name":"Yoga \u00b7 Smart \u00b7 Camera"},{"title":"Women's Floral Summer Dress","price":"$44.99","image":"https://picsum.photos/seed/dress12/300/300","description":"Lightweight floral print midi dress with adjustable straps and a flowy silhouette, perfect for warm-weather occasions.","cluster":5,"cluster_name":"Adjustable \u00b7 Lightweight \u00b7 Heel"},{"title":"Men's Wool Blend Overcoat","price":"$189.99","image":"https://picsum.photos/seed/coat13/300/300","description":"Tailored wool-blend overcoat with notched lapels, double-button closure and a warm inner lining for cold seasons.","cluster":5,"cluster_name":"Adjustable \u00b7 Lightweight \u00b7 Heel"},{"title":"Women's Yoga Leggings","price":"$39.99","image":"https://picsum.photos/seed/leggings14/300/300","description":"High-waist compression yoga leggings with moisture-wicking fabric, hidden pocket and four-way stretch for all activities.","cluster":4,"cluster_name":"Yoga \u00b7 Smart \u00b7 Camera"},{"title":"Men's Graphic T-Shirt","price":"$24.99","image":"https://picsum.photos/seed/tshirt15/300/300","description":"Soft 100% cotton crewneck T-shirt featuring bold original graphic print, available in multiple colors and relaxed fit.","cluster":5,"cluster_name":"Adjustable \u00b7 Lightweight \u00b7 Heel"},{"title":"Women's Denim Jacket","price":"$74.99","image":"https://picsum.photos/seed/denim16/300/300","description":"Classic washed denim jacket with button-front closure, chest pockets and rolled cuffs for a vintage-inspired street look.","cluster":5,"cluster_name":"Adjustable \u00b7 Lightweight \u00b7 Heel"},{"title":"Men's Running Sneakers","price":"$119.99","image":"https://picsum.photos/seed/sneakers17/300/300","description":"Lightweight mesh running sneakers with responsive foam midsole, breathable upper and anti-slip rubber outsole.","cluster":5,"cluster_name":"Adjustable \u00b7 Lightweight \u00b7 Heel"},{"title":"Women's Block Heel Boots","price":"$99.99","image":"https://picsum.photos/seed/boots18/300/300","description":"Ankle-height block heel boots in genuine leather with side zip, cushioned insole and stacked heel for everyday elegance.","cluster":5,"cluster_name":"Adjustable \u00b7 Lightweight \u00b7 Heel"},{"title":"Stainless Steel Air Fryer","price":"$89.99","image":"https://picsum.photos/seed/airfryer19/300/300","description":"5.8-quart air fryer with digital touchscreen, 8 cooking presets and rapid hot-air circulation for crispy oil-free cooking.","cluster":0,"cluster_name":"Stainless Steel \u00b7 Stainless \u00b7 Steel"},{"title":"Non-Stick Cookware Set","price":"$119.99","image":"https://picsum.photos/seed/cookware20/300/300","description":"10-piece ceramic non-stick cookware set including saucepans, frying pans and a stockpot with tempered glass lids.","cluster":1,"cluster_name":"Set \u00b7 Wireless \u00b7 Gaming"},{"title":"Espresso Coffee Machine","price":"$299.99","image":"https://picsum.photos/seed/espresso21/300/300","description":"15-bar pump espresso machine with built-in milk frother, programmable settings and stainless steel thermoblock heating.","cluster":0,"cluster_name":"Stainless Steel \u00b7 Stainless \u00b7 Steel"},{"title":"Electric Stand Mixer","price":"$249.99","image":"https://picsum.photos/seed/mixer22/300/300","description":"5-quart tilt-head stand mixer with 10 speeds, planetary mixing action and stainless steel bowl for baking enthusiasts.","cluster":0,"cluster_name":"Stainless Steel \u00b7 Stainless \u00b7 Steel"},{"title":"Bamboo Cutting Board Set","price":"$34.99","image":"https://picsum.photos/seed/cutting23/300/300","description":"Set of 3 eco-friendly bamboo cutting boards in different sizes with juice grooves and non-slip feet for safe chopping.","cluster":1,"cluster_name":"Set \u00b7 Wireless \u00b7 Gaming"},{"title":"Cast Iron Skillet","price":"$44.99","image":"https://picsum.photos/seed/skillet24/300/300","description":"Pre-seasoned 12-inch cast iron skillet with helper handle, compatible with all stovetops and oven-safe up to 500\u00b0F.","cluster":1,"cluster_name":"Set \u00b7 Wireless \u00b7 Gaming"},{"title":"Vacuum Insulated Water Bottle","price":"$29.99","image":"https://picsum.photos/seed/bottle25/300/300","description":"32oz double-wall vacuum insulated stainless steel bottle keeping drinks cold 24 hours and hot 12 hours with leak-proof lid.","cluster":0,"cluster_name":"Stainless Steel \u00b7 Stainless \u00b7 Steel"},{"title":"Smart Thermostat","price":"$149.99","image":"https://picsum.photos/seed/thermostat26/300/300","description":"Wi-Fi programmable smart thermostat with learning algorithm, energy reports and remote control via smartphone app.","cluster":2,"cluster_name":"Covering \u00b7 Programming \u00b7 Learning"},{"title":"Adjustable Dumbbells Set","price":"$229.99","image":"https://picsum.photos/seed/dumbbells27/300/300","description":"Space-saving adjustable dumbbell set ranging from 5 to 52.5 lbs per dumbbell with quick-change weight selector dial.","cluster":5,"cluster_name":"Adjustable \u00b7 Lightweight \u00b7 Heel"},{"title":"Yoga Mat with Strap","price":"$29.99","image":"https://picsum.photos/seed/yogamat28/300/300","description":"Thick 6mm non-slip TPE yoga mat with alignment lines, carrying strap and moisture-resistant surface for home workouts.","cluster":4,"cluster_name":"Yoga \u00b7 Smart \u00b7 Camera"},{"title":"Mountain Bike Helmet","price":"$79.99","image":"https://picsum.photos/seed/helmet29/300/300","description":"Lightweight MIPS mountain bike helmet with 20 vents, adjustable fit dial and removable visor for trail riding safety.","cluster":5,"cluster_name":"Adjustable \u00b7 Lightweight \u00b7 Heel"},{"title":"Camping Tent 4-Person","price":"$159.99","image":"https://picsum.photos/seed/tent30/300/300","description":"Four-person instant setup camping tent with waterproof rainfly, mesh ventilation panels and gear loft for family adventures.","cluster":1,"cluster_name":"Set \u00b7 Wireless \u00b7 Gaming"},{"title":"Trekking Poles Set","price":"$54.99","image":"https://picsum.photos/seed/poles31/300/300","description":"Collapsible carbon fiber trekking poles with ergonomic cork grips, quick-lock system and interchangeable rubber tips.","cluster":1,"cluster_name":"Set \u00b7 Wireless \u00b7 Gaming"},{"title":"Resistance Bands Kit","price":"$24.99","image":"https://picsum.photos/seed/bands32/300/300","description":"Set of 5 latex resistance bands in varying strengths for strength training, physical therapy and full-body workouts at home.","cluster":1,"cluster_name":"Set \u00b7 Wireless \u00b7 Gaming"},{"title":"The Art of Computer Programming","price":"$79.99","image":"https://picsum.photos/seed/book33/300/300","description":"Comprehensive multi-volume reference covering algorithms, data structures and programming techniques by Donald Knuth.","cluster":2,"cluster_name":"Covering \u00b7 Programming \u00b7 Learning"},{"title":"Atomic Habits","price":"$17.99","image":"https://picsum.photos/seed/book34/300/300","description":"Practical guide to building good habits and breaking bad ones through tiny behavioral changes with proven scientific methods.","cluster":1,"cluster_name":"Set \u00b7 Wireless \u00b7 Gaming"},{"title":"Deep Learning Textbook","price":"$64.99","image":"https://picsum.photos/seed/book35/300/300","description":"Comprehensive textbook on deep learning covering neural networks, backpropagation, convolutional and recurrent architectures.","cluster":2,"cluster_name":"Covering \u00b7 Programming \u00b7 Learning"},{"title":"The Pragmatic Programmer","price":"$49.99","image":"https://picsum.photos/seed/book36/300/300","description":"Classic software engineering book with timeless advice on coding practices, debugging and building maintainable software.","cluster":1,"cluster_name":"Set \u00b7 Wireless \u00b7 Gaming"},{"title":"Sapiens: A Brief History","price":"$15.99","image":"https://picsum.photos/seed/book37/300/300","description":"Fascinating exploration of human history from ancient foragers to modern civilization covering culture, science and society.","cluster":2,"cluster_name":"Covering \u00b7 Programming \u00b7 Learning"},{"title":"Python Crash Course","price":"$35.99","image":"https://picsum.photos/seed/book38/300/300","description":"Hands-on beginner guide to Python programming covering variables, loops, functions and building real-world projects.","cluster":2,"cluster_name":"Covering \u00b7 Programming \u00b7 Learning"}]};
+
+// Group by cluster
+const grouped = {};
+DATA.products.forEach(p => {
+  if (!grouped[p.cluster]) grouped[p.cluster] = [];
+  grouped[p.cluster].push(p);
+});
+
+const clusterIds = Object.keys(grouped).map(Number).sort();
+const colorNames = ['#7c6eff','#ff6e7c','#3ecf8e','#f5a623','#00bcd4','#e040fb'];
+const colorBgs   = ['rgba(124,110,255,0.12)','rgba(255,110,124,0.12)','rgba(62,207,142,0.12)','rgba(245,166,35,0.12)','rgba(0,188,212,0.12)','rgba(224,64,251,0.12)'];
+
+// Build filter buttons
+const filterBar = document.getElementById('filterBar');
+clusterIds.forEach((cid, i) => {
+  const btn = document.createElement('button');
+  btn.className = 'filter-btn';
+  btn.textContent = CLUSTER_LABELS[cid] || `Cluster ${cid}`;
+  btn.style.setProperty('--c', colorNames[i % colorNames.length]);
+  btn.setAttribute('data-cluster', cid);
+  btn.onclick = () => filterCluster(cid, btn);
+  filterBar.appendChild(btn);
+});
+
+// Build cluster sections
+const main = document.getElementById('mainContent');
+clusterIds.forEach((cid, i) => {
+  const color = colorNames[i % colorNames.length];
+  const colorBg = colorBgs[i % colorBgs.length];
+  const products = grouped[cid];
+
+  const section = document.createElement('section');
+  section.className = 'cluster-section';
+  section.setAttribute('data-cluster', cid);
+
+  section.innerHTML = `
+    <div class="cluster-header">
+      <span class="cluster-index" style="color:${color};border-color:${color};background:${colorBg}">
+        C${cid}
+      </span>
+      <span class="cluster-title">${CLUSTER_LABELS[cid] || DATA.cluster_names[cid]}</span>
+      <span class="cluster-count">${products.length} items</span>
+    </div>
+    <div class="product-grid" id="grid-${cid}"></div>
+  `;
+  main.appendChild(section);
+
+  const grid = section.querySelector(`#grid-${cid}`);
+  products.forEach((p, idx) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.animationDelay = `${idx * 0.04}s`;
+    card.setAttribute('data-title', p.title.toLowerCase());
+    card.setAttribute('data-desc', p.description.toLowerCase());
+    card.innerHTML = `
+      <img class="card-img" src="${p.image}" alt="${p.title}" loading="lazy">
+      <div class="card-body">
+        <div class="card-title">${p.title}</div>
+        <div class="card-desc">${p.description}</div>
+        <div class="card-footer">
+          <span class="card-price" style="color:${color}">${p.price}</span>
+          <span class="card-tag" style="color:${color};border-color:${color};background:${colorBg}">C${cid}</span>
+        </div>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+});
+
+let activeCluster = 'all';
+
+function filterCluster(val, btn) {
+  activeCluster = val;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.cluster-section').forEach(sec => {
+    if (val === 'all' || sec.getAttribute('data-cluster') == val) {
+      sec.classList.remove('hidden');
+    } else {
+      sec.classList.add('hidden');
+    }
+  });
+  filterSearch();
+}
+
+function filterSearch() {
+  const q = document.getElementById('searchInput').value.toLowerCase().trim();
+  let visible = 0;
+  document.querySelectorAll('.cluster-section').forEach(sec => {
+    const cid = sec.getAttribute('data-cluster');
+    const sectionVisible = activeCluster === 'all' || cid == activeCluster;
+    if (!sectionVisible) return;
+    let secHasVisible = false;
+    sec.querySelectorAll('.card').forEach(card => {
+      const match = !q || card.getAttribute('data-title').includes(q) || card.getAttribute('data-desc').includes(q);
+      card.style.display = match ? '' : 'none';
+      if (match) { secHasVisible = true; visible++; }
+    });
+    sec.classList.toggle('hidden', !secHasVisible);
+  });
+  document.getElementById('stat-products').textContent = q ? visible : 38;
+}
+</script>
+</body>
+</html>
